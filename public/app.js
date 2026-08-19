@@ -1,6 +1,7 @@
 const status = document.querySelector('#status');
 const addDeviceButton = document.querySelector('#addDevice');
 const sendNowButton = document.querySelector('#sendNow');
+const removeDeviceButton = document.querySelector('#removeDevice');
 
 let registration;
 let publicVapidKey;
@@ -41,7 +42,20 @@ async function start() {
   await navigator.serviceWorker.ready;
 
   const configResponse = await fetch('/api/config');
+
+  if (!configResponse.ok) {
+    const body = await configResponse.text();
+    throw new Error(
+      `/api/config returned ${configResponse.status}: ${body.slice(0, 120)}`
+    );
+  }
+
   const config = await configResponse.json();
+
+  if (!config.publicVapidKey) {
+    throw new Error('The API response does not contain publicVapidKey.');
+  }
+
   publicVapidKey = config.publicVapidKey;
 
   const subscription = await registration.pushManager.getSubscription();
@@ -49,14 +63,17 @@ async function start() {
 
   if (subscription && Notification.permission === 'granted') {
     setStatus(`This device is already added. Total devices: ${count}.`);
+
     addDeviceButton.disabled = true;
     addDeviceButton.textContent = 'This device is added';
-    sendNowButton.disabled = false;
-  } else {
-    setStatus(`Ready. Devices currently added: ${count}.`);
-  }
-}
 
+    removeDeviceButton.disabled = false;
+    sendNowButton.disabled = false;
+    return;
+  }
+
+  setStatus(`Ready. Devices currently added: ${count}.`);
+}
 addDeviceButton.addEventListener('click', async () => {
   try {
     addDeviceButton.disabled = true;
@@ -92,6 +109,7 @@ addDeviceButton.addEventListener('click', async () => {
 
     setStatus(`This device was added. Total devices: ${count}.`);
     addDeviceButton.textContent = 'This device is added';
+    removeDeviceButton.disabled = false;
     sendNowButton.disabled = false;
   } catch (error) {
     console.error(error);
@@ -129,4 +147,53 @@ sendNowButton.addEventListener('click', async () => {
 start().catch(error => {
   console.error(error);
   setStatus(`Startup error: ${error.message}`);
+});
+
+removeDeviceButton.addEventListener('click', async () => {
+  try {
+    removeDeviceButton.disabled = true;
+    setStatus('Removing this device…');
+
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      setStatus('This browser has no active push subscription.');
+      addDeviceButton.disabled = false;
+      addDeviceButton.textContent = 'Add this device';
+      sendNowButton.disabled = true;
+      return;
+    }
+
+    const response = await fetch('/api/devices', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: subscription.endpoint })
+    });
+
+    if (!response.ok) {
+      throw new Error('Could not remove this device from the server.');
+    }
+
+    const unsubscribed = await subscription.unsubscribe();
+
+    if (!unsubscribed) {
+      console.warn('The subscription was already inactive in the browser.');
+    }
+
+    const count = await deviceCount();
+
+    setStatus(`This device was removed. Remaining devices: ${count}.`);
+
+    addDeviceButton.disabled = false;
+    addDeviceButton.textContent = 'Add this device';
+    sendNowButton.disabled = true;
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not remove device: ${error.message}`);
+
+    const currentSubscription =
+      await registration.pushManager.getSubscription();
+
+    removeDeviceButton.disabled = !currentSubscription;
+  }
 });

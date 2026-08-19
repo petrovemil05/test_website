@@ -150,6 +150,21 @@ setInterval(() => {
   sendToAllDevices().catch(console.error);
 }, 30 * 60 * 1000);
 
+app.delete('/api/devices', (req, res) => {
+  const endpoint = req.body?.endpoint;
+
+  if (!endpoint) {
+    return res.status(400).json({ error: 'Missing subscription endpoint.' });
+  }
+
+  const result = deleteSubscription.run(endpoint);
+
+  res.json({
+    ok: true,
+    removed: result.changes > 0
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Open http://localhost:${PORT}`);
   console.log('Automatic notification interval: 30 minutes');
