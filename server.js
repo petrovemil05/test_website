@@ -15,6 +15,16 @@ const {
   VAPID_PRIVATE_KEY
 } = process.env;
 
+const BULGARIA_TIMEZONE = 'Europe/Sofia';
+
+function bulgariaTime(date = new Date()) {
+  return new Intl.DateTimeFormat('bg-BG', {
+    timeZone: BULGARIA_TIMEZONE,
+    dateStyle: 'medium',
+    timeStyle: 'medium'
+  }).format(date);
+}
+
 if (!VAPID_SUBJECT || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
   throw new Error('Missing VAPID environment variables. Check .env.');
 }
@@ -94,7 +104,7 @@ async function sendToAllDevices() {
 
   const payload = {
     title: 'Push Test',
-    body: `Automatic test: ${new Date().toLocaleString()}`,
+    body: `Автоматичен тест: ${bulgariaTime()}`,
     url: '/',
     tag: `test-${Date.now()}`
   };
@@ -106,9 +116,8 @@ async function sendToAllDevices() {
   const delivered = results.filter(Boolean).length;
 
   console.log(
-    `[${new Date().toISOString()}] Sent to ${delivered}/${devices.length} device(s)`
+    `[${bulgariaTime()}] Изпратено до ${delivered}/${devices.length} устройства`
   );
-
   return { devices: devices.length, delivered };
 }
 
